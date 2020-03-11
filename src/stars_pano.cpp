@@ -4,6 +4,8 @@
  */
 
 #include <iostream>
+#include <cmath>
+// #include <numbers>  // C++ 20
 #include <opencv2/highgui/highgui.hpp>
 #include <random>
 #include <vector>
@@ -33,7 +35,7 @@ class StarField
 public:
   StarField(
       double field_size,
-      double image_width, double image_height, size_t num_stars) :
+      size_t image_width, size_t image_height, size_t num_stars) :
     field_size_(field_size),
     image_width_(image_width),
     image_height_(image_height),
@@ -60,13 +62,56 @@ public:
   {
     cv::Mat image(cv::Size(image_width_, image_height_), CV_8UC4, cv::Scalar::all(0));
 
+    for (const auto& star : stars_) {
+      const double dx = star.x_ - view_x;
+      const double dy = star.y_ - view_y;
+      const double dz = star.z_ - view_z;
+
+      // TODO(lucasw) optionally make a looping effect where every point repeats
+      // into infinity, but the same point won't be visible twice - just render
+      // the closest instance.
+
+      // need to get latitude and longitude to plot a point
+      // -> altitude, azimuth
+      // TODO(lucasw) make an atan2 lookup table accurate to 1.0/image_width_ tau,
+      // make it also use square of distance rather than distance
+      const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+      const double dxn = dx / dist;
+      const double dyn = dy / dist;
+      const double dzn = dz / dist;
+      const double xyn_dist = std::sqrt(dxn * dxn + dyn * dyn);
+      const double altitude = std::atan2(dzn, xyn_dist) / (M_PI) + 0.5;
+      const double azimuth = std::atan2(dyn, dxn) / (M_PI * 2.0) + 0.5;
+
+      // const double image_x = std::fmod(azimuth * image_width_, image_width_);
+      // const double image_y = std::fmod(altitude * image_height_, image_height_);
+      const double image_x = azimuth * image_width_;
+      const double image_y = altitude * image_height_;
+      const size_t pix_x = static_cast<int>(image_x) % image_width_;
+      const size_t pix_y = static_cast<int>(image_y) % image_height_;
+
+      // TODO(lucasw) dim with distance
+      const double intensity = 255;
+      image.at<cv::Vec4b>(pix_y, pix_x) = cv::Vec4b(intensity, intensity, intensity, 255);
+    }
+
     return image;
+  }
+
+  void animate()
+  {
+    double x = 0.0;
+    do {
+      cv::Mat image = render(x);
+      cv::imshow("star field", image);
+      x += 0.02;
+    } while ('q' != cv::waitKey(10));
   }
 
 private:
   const double field_size_ = 100.0;
-  const double image_width_;
-  const double image_height_;
+  const size_t image_width_;
+  const size_t image_height_;
   const size_t num_stars_;
 
   std::vector<StarPoint> stars_;
@@ -82,13 +127,10 @@ private:
 
 int main(int argn, char** argv)
 {
-
-  StarField star_field(100.0, 1000, 500, 1000);
+  StarField star_field(100.0, 1600, 800, 2000);
 
   star_field.generate();
-  cv::Mat image = star_field.render();
-  cv::imshow("star field", image);
-  cv::waitKey(0);
+  star_field.animate();
 
   return 0;
 }
