@@ -15,7 +15,7 @@ struct StarPoint
   StarPoint(const double x = 0.0,
             const double y = 0.0,
             const double z = 0.0,
-            const double brightness = 0.0) :
+            const double brightness = 1.0) :
     x_(x),
     y_(y),
     z_(z),
@@ -34,9 +34,11 @@ class StarField
 {
 public:
   StarField(
-      double field_size,
+      double field_size_x, double field_size_y, double field_size_z,
       size_t image_width, size_t image_height, size_t num_stars) :
-    field_size_(field_size),
+    field_size_x_(field_size_x),
+    field_size_y_(field_size_y),
+    field_size_z_(field_size_z),
     image_width_(image_width),
     image_height_(image_height),
     num_stars_(num_stars),
@@ -49,10 +51,10 @@ public:
   {
     stars_.resize(num_stars_);
     for (size_t i = 0; i < num_stars_; ++i) {
-      const auto x = getRandom() * field_size_;
-      const auto y = getRandom() * field_size_;
-      const auto z = getRandom() * field_size_;
-      const auto base_brightness = getRandom() + 1.3;
+      const auto x = getRandom() * field_size_x_;
+      const auto y = getRandom() * field_size_y_;
+      const auto z = getRandom() * field_size_z_;
+      const auto base_brightness = getRandom() + 1.5;
       const auto brightness = base_brightness * base_brightness;
       stars_[i] = StarPoint(x, y, z, base_brightness);
     }
@@ -78,11 +80,13 @@ public:
   {
     cv::Mat image(cv::Size(image_width_, image_height_), CV_8UC4, cv::Scalar::all(0));
 
+    const double max_dist = (field_size_y_ * 0.5);
+    const double max_dist2 = max_dist * max_dist;
+
     for (const auto& star : stars_) {
-      const double msz = field_size_;
-      const double dx = loopValue(star.x_ - view_x, msz);
-      const double dz = loopValue(star.y_ - view_y, msz);
-      const double dy = loopValue(star.z_ - view_z, msz);
+      const double dx = loopValue(star.x_ - view_x, field_size_x_);
+      const double dz = loopValue(star.y_ - view_y, field_size_y_);
+      const double dy = loopValue(star.z_ - view_z, field_size_z_);
 
       // TODO(lucasw) optionally make a looping effect where every point repeats
       // into infinity, but the same point won't be visible twice - just render
@@ -97,6 +101,9 @@ public:
         continue;
       }
       // TODO(lucasw) if dist2 > some dist then continue
+      if (dist2 > max_dist2) {
+        continue;
+      }
       const double dist = std::sqrt(dist2);
       const double dxn = dx / dist;
       const double dyn = dy / dist;
@@ -113,9 +120,10 @@ public:
       const size_t pix_y = static_cast<int>(image_y) % image_height_;
 
       // TODO(lucasw) dim with distance
-      const double sc = field_size_ * 0.2;
+      // TODO(lucasw) need to get this number from a different variable
+      const double sc = field_size_y_ * 0.22;
       const double fr = (sc * sc) / dist2;
-      double intensity = 1.0 * fr;
+      double intensity = 1.0 * fr * star.brightness_;
       if (intensity > 1.0) {
         // TODO(lucasw) maybe draw a bigger circle instead
         intensity = 1.0;
@@ -141,7 +149,9 @@ public:
   }
 
 private:
-  const double field_size_ = 100.0;
+  const double field_size_x_ = 100.0;
+  const double field_size_y_ = 100.0;
+  const double field_size_z_ = 100.0;
   const size_t image_width_;
   const size_t image_height_;
   const size_t num_stars_;
@@ -159,7 +169,7 @@ private:
 
 int main(int argn, char** argv)
 {
-  StarField star_field(100.0, 1600, 800, 2000);
+  StarField star_field(200.0, 50.0, 50.0, 1800, 900, 40000);
 
   star_field.generate();
   star_field.animate();
