@@ -1,6 +1,6 @@
 /**
  * Render points of starfield to equirectangular output images
- *  g++ -std=c++17 stars_pano.cpp -lopencv_highgui -lopencv_core
+ *  g++ -std=c++17 stars_pano.cpp -lopencv_highgui -lopencv_imgcodecs -lopencv_core
  */
 
 #include <iostream>
@@ -8,6 +8,7 @@
 // #include <numbers>  // C++ 20
 #include <opencv2/highgui/highgui.hpp>
 #include <random>
+#include <string>
 #include <vector>
 
 struct StarPoint
@@ -78,7 +79,7 @@ public:
 
   cv::Mat render(double view_x = 0.0, double view_y = 0.0, double view_z = 0.0)
   {
-    cv::Mat image(cv::Size(image_width_, image_height_), CV_8UC4, cv::Scalar::all(0));
+    cv::Mat image(cv::Size(image_width_, image_height_), CV_8UC3, cv::Scalar::all(0));
 
     const double max_dist = (field_size_y_ * 0.5);
     const double max_dist2 = max_dist * max_dist;
@@ -121,7 +122,7 @@ public:
 
       // TODO(lucasw) dim with distance
       // TODO(lucasw) need to get this number from a different variable
-      const double sc = field_size_y_ * 0.22;
+      const double sc = field_size_y_ * 0.15;
       const double fr = (sc * sc) / dist2;
       double intensity = 1.0 * fr * star.brightness_;
       if (intensity > 1.0) {
@@ -131,7 +132,8 @@ public:
       const unsigned char br = intensity * 255;
       if (br > 0) {
         // TODO(lucasw) don't draw a darker pixel on top of a lighter
-        image.at<cv::Vec4b>(pix_y, pix_x) = cv::Vec4b(br, br, br, 255);
+        // image.at<cv::Vec4b>(pix_y, pix_x) += cv::Vec4b(br, br, br, 255);
+        image.at<cv::Vec3b>(pix_y, pix_x) += cv::Vec3b(br, br, br);
       }
     }
 
@@ -140,11 +142,18 @@ public:
 
   void animate()
   {
+    size_t i = 1000000;
     double x = 0.0;
     do {
       cv::Mat image = render(x);
-      cv::imshow("star field", image);
+      // cv::imshow("star field", image);
+      const std::string image_name = "image_" + std::to_string(i) + ".png";
+      cv::imwrite(image_name, image);
       x += 0.05;
+      if (x > field_size_x_) {
+        break;
+      }
+      ++i;
     } while ('q' != cv::waitKey(10));
   }
 
@@ -169,7 +178,7 @@ private:
 
 int main(int argn, char** argv)
 {
-  StarField star_field(200.0, 50.0, 50.0, 1800, 900, 40000);
+  StarField star_field(200.0, 50.0, 50.0, 8192, 4096, 140000);
 
   star_field.generate();
   star_field.animate();
