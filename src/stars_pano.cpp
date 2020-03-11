@@ -75,7 +75,11 @@ public:
       // -> altitude, azimuth
       // TODO(lucasw) make an atan2 lookup table accurate to 1.0/image_width_ tau,
       // make it also use square of distance rather than distance
-      const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+      const double dist2 = dx * dx + dy * dy + dz * dz;
+      if (dist2 == 0.0) {
+        continue;
+      }
+      const double dist = std::sqrt(dist2);
       const double dxn = dx / dist;
       const double dyn = dy / dist;
       const double dzn = dz / dist;
@@ -91,8 +95,18 @@ public:
       const size_t pix_y = static_cast<int>(image_y) % image_height_;
 
       // TODO(lucasw) dim with distance
-      const double intensity = 255;
-      image.at<cv::Vec4b>(pix_y, pix_x) = cv::Vec4b(intensity, intensity, intensity, 255);
+      const double sc = field_size_ * 0.2;
+      const double fr = (sc * sc) / dist2;
+      double intensity = 1.0 * fr;
+      if (intensity > 1.0) {
+        // TODO(lucasw) maybe draw a bigger circle instead
+        intensity = 1.0;
+      }
+      const unsigned char br = intensity * 255;
+      if (br > 0) {
+        // TODO(lucasw) don't draw a darker pixel on top of a lighter
+        image.at<cv::Vec4b>(pix_y, pix_x) = cv::Vec4b(br, br, br, 255);
+      }
     }
 
     return image;
@@ -104,7 +118,7 @@ public:
     do {
       cv::Mat image = render(x);
       cv::imshow("star field", image);
-      x += 0.02;
+      x += 0.05;
     } while ('q' != cv::waitKey(10));
   }
 
