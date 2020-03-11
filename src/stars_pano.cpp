@@ -58,14 +58,31 @@ public:
     }
   }
 
+  double loopValue(const double val, const double msz)
+  {
+    // const double new_val = (val > 0.0) ? std::fmod(val, msz) : 0.0;  //-fmod(-val, msz);
+    // const double new_val = std::fmod(val + msz * 0.5, msz) - msz * 0.5;
+    // const double new_val = std::fmod(val, msz * 0.5);
+    auto val2 = val;
+    // TODO(lucasw) replicate with fmod if it is actually faster
+    while (val2 > msz * 0.5) {
+      val2 -= msz;
+    }
+    while (val2 < -msz * 0.5) {
+      val2 += msz;
+    }
+    return val2;
+  }
+
   cv::Mat render(double view_x = 0.0, double view_y = 0.0, double view_z = 0.0)
   {
     cv::Mat image(cv::Size(image_width_, image_height_), CV_8UC4, cv::Scalar::all(0));
 
     for (const auto& star : stars_) {
-      const double dx = star.x_ - view_x;
-      const double dy = star.y_ - view_y;
-      const double dz = star.z_ - view_z;
+      const double msz = field_size_;
+      const double dx = loopValue(star.x_ - view_x, msz);
+      const double dz = loopValue(star.y_ - view_y, msz);
+      const double dy = loopValue(star.z_ - view_z, msz);
 
       // TODO(lucasw) optionally make a looping effect where every point repeats
       // into infinity, but the same point won't be visible twice - just render
@@ -79,6 +96,7 @@ public:
       if (dist2 == 0.0) {
         continue;
       }
+      // TODO(lucasw) if dist2 > some dist then continue
       const double dist = std::sqrt(dist2);
       const double dxn = dx / dist;
       const double dyn = dy / dist;
