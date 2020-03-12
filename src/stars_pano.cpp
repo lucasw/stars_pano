@@ -1,12 +1,13 @@
 /**
  * Render points of starfield to equirectangular output images
- *  g++ -std=c++17 stars_pano.cpp -lopencv_highgui -lopencv_imgcodecs -lopencv_core
+g++ -std=c++17 stars_pano.cpp -lopencv_highgui -lopencv_imgcodecs -lopencv_core -lopencv_imgproc
  */
 
 #include <iostream>
 #include <cmath>
 // #include <numbers>  // C++ 20
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <random>
 #include <string>
 #include <vector>
@@ -84,6 +85,13 @@ public:
     const double max_dist = (field_size_y_ * 0.5);
     const double max_dist2 = max_dist * max_dist;
 
+    // if the resolution is too high want to scale up the stars with it
+    // TODO(lucasw) need to test that in youtube though
+    const double ref_width = 4000;
+    const double ref_sz = 1.2;
+    const double sz_scale = (image_width_ < ref_width) ? ref_sz :
+      (ref_sz * (static_cast<double>(image_width_) / ref_width));
+
     for (const auto& star : stars_) {
       const double dx = loopValue(star.x_ - view_x, field_size_x_);
       const double dz = loopValue(star.y_ - view_y, field_size_y_);
@@ -110,13 +118,17 @@ public:
       const double dyn = dy / dist;
       const double dzn = dz / dist;
       const double xyn_dist = std::sqrt(dxn * dxn + dyn * dyn);
-      const double altitude = std::atan2(dzn, xyn_dist) / (M_PI) + 0.5;
+      const double alt_radians = std::atan2(dzn, xyn_dist);
+      const double altitude = alt_radians / M_PI + 0.5;
       const double azimuth = std::atan2(dyn, dxn) / (M_PI * 2.0) + 0.5;
 
       // const double image_x = std::fmod(azimuth * image_width_, image_width_);
       // const double image_y = std::fmod(altitude * image_height_, image_height_);
       const double image_x = azimuth * image_width_;
       const double image_y = altitude * image_height_;
+
+      const bool on_pole = (image_y == 0) || (image_y == image_height_ - 1);
+      const double alt_scale = on_pole ? 1.0 : (1.0 / std::cos(alt_radians));
       const size_t pix_x = static_cast<int>(image_x) % image_width_;
       const size_t pix_y = static_cast<int>(image_y) % image_height_;
 
@@ -129,11 +141,30 @@ public:
         // TODO(lucasw) maybe draw a bigger circle instead
         intensity = 1.0;
       }
-      const unsigned char br = intensity * 255;
+      const size_t br = intensity * 255;
       if (br > 0) {
         // TODO(lucasw) don't draw a darker pixel on top of a lighter
         // image.at<cv::Vec4b>(pix_y, pix_x) += cv::Vec4b(br, br, br, 255);
-        image.at<cv::Vec3b>(pix_y, pix_x) += cv::Vec3b(br, br, br);
+        // image.at<cv::Vec3b>(pix_y, pix_x) += cv::Vec3b(br, br, br);
+        //
+        // TODO(lucasw) would like stars to not get too big, but if they are smaller
+        // than 1.0 don't want them to dim so much
+        auto sz = intensity * sz_scale;
+        // auto sz = 1.0;
+        const int shift = 3;
+        const double factor = (1 << shift);
+        const auto loc = cv::Point(image_x * factor + 0.5, image_y * factor + 0.5);
+        // const auto loc = cv::Point(image_x, image_y);
+        // const auto color = cv::Scalar(br * 2, br * 2, br * 2);
+        auto br2 =  br * 4;
+        if (br2 > 255) {
+          br2 = 255;
+        }
+        const cv::Scalar color(br, br, br);
+        // cv::circle(image, loc, sz * factor, color, cv::FILLED, cv::LINE_AA, shift);
+        cv::Size axes(sz * factor * alt_scale, sz * factor);
+        cv::ellipse(image, loc, axes, 0.0, 0.0, 360.0,
+                    color, cv::FILLED, cv::LINE_AA, shift);
       }
     }
 
@@ -146,7 +177,7 @@ public:
     double x = 0.0;
     do {
       cv::Mat image = render(x);
-      // cv::imshow("star field", image);
+      cv::imshow("star field", image);
       const std::string image_name = "image_" + std::to_string(i) + ".png";
       cv::imwrite(image_name, image);
       x += 0.05;
@@ -178,7 +209,13 @@ private:
 
 int main(int argn, char** argv)
 {
-  StarField star_field(200.0, 50.0, 50.0, 8192, 4096, 140000);
+  // ffmpeg may not be able to go above 4000x2000,
+  // but blender probably can.
+  size_t image_width = 4096;
+  size_t image_height = image_width * 0.5;
+  size_t num_stars = 165000;
+
+  StarField star_field(200.0, 50.0, 50.0, image_width, image_height, num_stars);
 
   star_field.generate();
   star_field.animate();
