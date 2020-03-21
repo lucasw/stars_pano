@@ -15,7 +15,7 @@ edgewall_m = 2e6
 scale_down = 1.0 / width_m
 
 angle_span = 10.0
-angle_steps = 16.0
+angle_steps = 32.0
 
 with open('cyl_section.obj', 'w') as obj:
     obj.write('o orbital_section\n')
@@ -38,14 +38,22 @@ with open('cyl_section.obj', 'w') as obj:
         y = radius * math.sin(angle)
 
         z = -half_width
-        obj.write('v {} {} {}\n'.format(wall_x, wall_y, z))
-        obj.write('v {} {} {}\n'.format(x, y, z))
+        z_e = 0.01
+        obj.write('v {} {} {}\n'.format(z - z_e, -x, y))
+        obj.write('v {} {} {}\n'.format(z - z_e, -wall_x, wall_y))
+        obj.write('v {} {} {}\n'.format(z + z_e, -wall_x, wall_y))
+        obj.write('v {} {} {}\n'.format(z + z_e, -x, y))
 
+        # obj.write('v {} {} {}\n'.format(z, -x, y))
         z = half_width
-        obj.write('v {} {} {}\n'.format(x, y, z))
-        obj.write('v {} {} {}\n'.format(wall_x, wall_y, z))
+        # obj.write('v {} {} {}\n'.format(z, -x, y))
 
-    pts_per_segment = 4
+        obj.write('v {} {} {}\n'.format(z - z_e, -x, y))
+        obj.write('v {} {} {}\n'.format(z - z_e, -wall_x, wall_y))
+        obj.write('v {} {} {}\n'.format(z + z_e, -wall_x, wall_y))
+        obj.write('v {} {} {}\n'.format(z + z_e, -x, y))
+
+    pts_per_segment = 8
     for i in range(count):
         for j in range(pts_per_segment - 1):
             v0 = i * pts_per_segment + j + 1
